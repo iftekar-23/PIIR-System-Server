@@ -52,6 +52,7 @@ async function run() {
         const issuesCollection = db.collection("issues");
         const usersCollection = db.collection("users");
         const votesCollection = db.collection("issueVotes");
+          const paymentsCollection = db.collection("payments");
 
         // Load all issues
         app.get("/issues", async (req, res) => {
