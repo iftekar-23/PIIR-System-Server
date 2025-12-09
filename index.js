@@ -125,6 +125,40 @@ async function run() {
             res.send({ success: true, message: "Upvote added" });
         });
 
+
+        // payments related api
+
+        app.post("/boost-issue", verifyFBToken, async (req, res) => {
+      const { issueId, userEmail } = req.body;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              unit_amount: 100 * 100, // 100tk = $1 (adjust if needed)
+              product_data: {
+                name: `Boost Issue Priority`,
+              },
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        customer_email: userEmail,
+        metadata: { issueId },
+        success_url: `${process.env.CLIENT_URL}/boost-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${process.env.CLIENT_URL}/boost-failed`,
+      });
+
+      res.send({ url: session.url });
+    });
+
+
+
+
+
         await client.connect();
         await client.db("admin").command({ ping: 1 });
         console.log("MongoDB Connected Successfully!");
