@@ -16,21 +16,21 @@ app.use(express.json())
 var serviceAccount = require("./piir-system-firebase-adminsdk.json");
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+    credential: admin.credential.cert(serviceAccount)
 });
 
 
 const verifyFBToken = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) return res.status(401).send({ message: "unauthorized" });
+    try {
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) return res.status(401).send({ message: "unauthorized" });
 
-    const decoded = await admin.auth().verifyIdToken(token);
-    req.decoded_email = decoded.email;
-    next();
-  } catch (err) {
-    return res.status(401).send({ message: "unauthorized" });
-  }
+        const decoded = await admin.auth().verifyIdToken(token);
+        req.decoded_email = decoded.email;
+        next();
+    } catch (err) {
+        return res.status(401).send({ message: "unauthorized" });
+    }
 };
 
 
@@ -52,7 +52,21 @@ async function run() {
         const issuesCollection = db.collection("issues");
         const usersCollection = db.collection("users");
         const votesCollection = db.collection("issueVotes");
-          const paymentsCollection = db.collection("payments");
+        const paymentsCollection = db.collection("payments");
+
+
+        const logTimeline = async (issueId, action, updatedBy = "System") => {
+            const entry = {
+                action,
+                updatedBy,
+                date: new Date().toISOString()
+            };
+
+            await issuesCollection.updateOne(
+                { _id: new ObjectId(issueId) },
+                { $push: { timeline: { $each: [entry], $position: 0 } } }
+            );
+        };
 
         // Load all issues
         app.get("/issues", async (req, res) => {
@@ -63,7 +77,12 @@ async function run() {
         // Add new issue
         app.post("/issues", async (req, res) => {
             const data = req.body;
+            data.timeline = [];
+
             const result = await issuesCollection.insertOne(data);
+
+            await logTimeline(result.insertedId, "Issue reported by citizen", data.userEmail);
+
             res.send(result);
         });
 
@@ -85,6 +104,22 @@ async function run() {
             res.send(result);
         });
 
+
+        app.patch("/issues/status/:id", async (req, res) => {
+            const id = req.params.id;
+            const { newStatus, updatedBy } = req.body;
+
+            await issuesCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { status: newStatus } }
+            );
+
+            await logTimeline(id, `Status changed to ${newStatus}`, updatedBy);
+
+            res.send({ success: true });
+        });
+
+
         // Delete Issue
         app.delete("/issues/:id", async (req, res) => {
             const id = req.params.id;
@@ -93,10 +128,106 @@ async function run() {
         });
 
         // Users API
+
+        // Get all users
         app.get("/users", async (req, res) => {
-            const result = await usersCollection.find().toArray();
-            res.send(result);
+            try {
+                const searchText = req.query.searchText || "";
+                const query = {};
+
+                if (searchText) {
+                    query.$or = [
+                        { name: { $regex: searchText, $options: 'i' } },
+                        { email: { $regex: searchText, $options: 'i' } }
+                    ];
+                }
+
+                const result = await usersCollection
+                    .find(query)
+                    .sort({ createdAt: -1 })
+                    .limit(50)
+                    .toArray();
+
+                res.send(result);
+            } catch (err) {
+                console.error("GET /users error:", err);
+                res.status(500).send({ message: "Server error" });
+            }
         });
+
+
+        app.post("/users", async (req, res) => {
+            try {
+                const { email, name, photoURL } = req.body;
+                if (!email) return res.status(400).send({ success: false, message: "Email required" });
+
+                const filter = { email };
+
+                const update = {
+                    $setOnInsert: {
+                        email,
+                        role: "citizen",
+                        createdAt: new Date(),
+                    },
+                    $set: {
+                        name: name || "",
+                        photoURL: photoURL || "",
+                    }
+                };
+
+                const result = await usersCollection.updateOne(filter, update, { upsert: true });
+                const user = await usersCollection.findOne({ email });
+
+                res.send({ success: true, user, result });
+
+            } catch (err) {
+                console.error("save-user error:", err);
+                res.status(500).send({ success: false, message: "Server error" });
+            }
+        });
+
+
+
+        app.get("/users/role/:email", async (req, res) => {
+            try {
+                const email = req.params.email;
+                const user = await usersCollection.findOne({ email });
+                res.send({ role: user?.role || "citizen" });
+            } catch (err) {
+                console.error("get role error:", err);
+                res.status(500).send({ role: "citizen" });
+            }
+        });
+
+        app.patch("/users/role/:email", async (req, res) => {
+            try {
+                // verifyFBToken sets req.decoded_email
+                const requesterEmail = req.decoded_email;
+                if (!requesterEmail) return res.status(401).send({ message: "unauthorized" });
+
+                const requester = await usersCollection.findOne({ email: requesterEmail });
+                if (!requester || requester.role !== "admin") {
+                    return res.status(403).send({ message: "forbidden: admin only" });
+                }
+
+                const targetEmail = req.params.email;
+                const { role } = req.body;
+                if (!["admin", "staff", "citizen"].includes(role)) {
+                    return res.status(400).send({ message: "invalid role" });
+                }
+
+                const result = await usersCollection.updateOne(
+                    { email: targetEmail },
+                    { $set: { role } }
+                );
+
+                res.send({ success: true, result });
+            } catch (err) {
+                console.error("patch role error:", err);
+                res.status(500).send({ message: "server error" });
+            }
+        });
+
 
         // UPVOTE API (no need to modify your issues structure)
         app.patch("/issues/upvote/:id", async (req, res) => {
@@ -128,34 +259,62 @@ async function run() {
 
         // payments related api
 
-        app.post("/boost-issue", verifyFBToken, async (req, res) => {
-      const { issueId, userEmail } = req.body;
+        app.post("/boost-issue", async (req, res) => {
+            const { issueId, userEmail } = req.body;
 
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ["card"],
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              unit_amount: 100 * 100, // 100tk = $1 (adjust if needed)
-              product_data: {
-                name: `Boost Issue Priority`,
-              },
-            },
-            quantity: 1,
-          },
-        ],
-        mode: "payment",
-        customer_email: userEmail,
-        metadata: { issueId },
-        success_url: `${process.env.CLIENT_URL}/boost-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${process.env.CLIENT_URL}/boost-failed`,
-      });
+            const session = await stripe.checkout.sessions.create({
+                payment_method_types: ["card"],
+                line_items: [
+                    {
+                        price_data: {
+                            currency: "usd",
+                            unit_amount: 100 * 100,
+                            product_data: {
+                                name: `Boost Issue Priority`,
+                            },
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: "payment",
+                customer_email: userEmail,
+                metadata: { issueId },
+                success_url: `${process.env.CLIENT_URL}/boost-success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${process.env.CLIENT_URL}/boost-failed`,
+            });
 
-      res.send({ url: session.url });
-    });
+            res.send({ url: session.url });
+        });
 
 
+
+        app.get("/boost-success", async (req, res) => {
+            const session = await stripe.checkout.sessions.retrieve(
+                req.query.session_id
+            );
+            const issueId = session.metadata.issueId;
+
+            // update priority
+            await issuesCollection.updateOne(
+                { _id: new ObjectId(issueId) },
+                { $set: { priority: "high" } }
+            );
+
+            await logTimeline(issueId, "Issue Boosted (Priority set to High)");
+
+            // store payment
+            const payment = {
+                issueId,
+                amount: session.amount_total / 100,
+                email: session.customer_email,
+                transactionId: session.payment_intent,
+                paidAt: new Date(),
+            };
+
+            await paymentsCollection.insertOne(payment);
+
+            res.send({ success: true });
+        });
 
 
 
