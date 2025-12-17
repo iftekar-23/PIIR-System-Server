@@ -672,47 +672,47 @@ async function run() {
 
         // Admin related apis
 
-        // app.get("/admin/dashboard/stats", verifyFBToken, verifyAdmin, async (req, res) => {
-        //     try {
-        //         const totalIssues = await issuesCollection.countDocuments();
+        app.get("/admin/dashboard/stats", verifyFBToken, verifyAdmin, async (req, res) => {
+            try {
+                const totalIssues = await issuesCollection.countDocuments();
 
-        //         const pendingIssues = await issuesCollection.countDocuments({
-        //             status: "Pending",
-        //         });
+                const pendingIssues = await issuesCollection.countDocuments({
+                    status: "Pending",
+                });
 
-        //         const resolvedIssues = await issuesCollection.countDocuments({
-        //             status: "Resolved",
-        //         });
+                const resolvedIssues = await issuesCollection.countDocuments({
+                    status: "Resolved",
+                });
 
-        //         const closedIssues = await issuesCollection.countDocuments({
-        //             status: "Closed",
-        //         });
+                const closedIssues = await issuesCollection.countDocuments({
+                    status: "Closed",
+                });
 
-        //         const paymentsAgg = await paymentsCollection.aggregate([
-        //             { $group: { _id: null, total: { $sum: "$amount" } } },
-        //         ]).toArray();
+                const paymentsAgg = await paymentsCollection.aggregate([
+                    { $group: { _id: null, total: { $sum: "$amount" } } },
+                ]).toArray();
 
-        //         res.send({
-        //             totalIssues,
-        //             pendingIssues,
-        //             resolvedIssues,
-        //             closedIssues,
-        //             totalPayments: paymentsAgg[0]?.total || 0,
-        //         });
-        //     } catch (err) {
-        //         console.error("Admin stats error:", err);
-        //         res.status(500).send({ message: "Failed to load admin stats" });
-        //     }
-        // });
+                res.send({
+                    totalIssues,
+                    pendingIssues,
+                    resolvedIssues,
+                    closedIssues,
+                    totalPayments: paymentsAgg[0]?.total || 0,
+                });
+            } catch (err) {
+                console.error("Admin stats error:", err);
+                res.status(500).send({ message: "Failed to load admin stats" });
+            }
+        });
 
-        // app.get("/admin/issues", verifyFBToken, verifyAdmin, async (req, res) => {
-        //     const issues = await issuesCollection
-        //         .find()
-        //         .sort({ priority: -1, createdAt: -1 })
-        //         .toArray();
+        app.get("/admin/issues", verifyFBToken, verifyAdmin, async (req, res) => {
+            const issues = await issuesCollection
+                .find()
+                .sort({ priority: -1, createdAt: -1 })
+                .toArray();
 
-        //     res.send(issues);
-        // });
+            res.send(issues);
+        });
 
         app.patch("/admin/issues/:id/assign", verifyFBToken, verifyAdmin, async (req, res) => {
             const issueId = req.params.id;
