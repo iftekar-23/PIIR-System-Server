@@ -447,48 +447,48 @@ async function run() {
         });
 
         // SUBSCRIBE TO PREMIUM (Citizen)
-        app.post("/subscribe", verifyFBToken, async (req, res) => {
-            try {
-                const { email } = req.body;
+        // app.post("/subscribe", verifyFBToken, async (req, res) => {
+        //     try {
+        //         const { email } = req.body;
 
-                if (req.decoded_email !== email) {
-                    return res.status(403).send({ message: "Forbidden" });
-                }
+        //         if (req.decoded_email !== email) {
+        //             return res.status(403).send({ message: "Forbidden" });
+        //         }
 
-                const user = await usersCollection.findOne({ email });
-                if (!user) return res.status(404).send({ message: "User not found" });
+        //         const user = await usersCollection.findOne({ email });
+        //         if (!user) return res.status(404).send({ message: "User not found" });
 
-                if (user.isPremium) {
-                    return res.status(400).send({ message: "Already premium user" });
-                }
+        //         if (user.isPremium) {
+        //             return res.status(400).send({ message: "Already premium user" });
+        //         }
 
-                const session = await stripe.checkout.sessions.create({
-                    payment_method_types: ["card"],
-                    mode: "payment",
-                    customer_email: email,
-                    line_items: [
-                        {
-                            price_data: {
-                                currency: "bdt",
-                                unit_amount: 1000 * 100, // 1000 TK
-                                product_data: {
-                                    name: "CityFix Premium Subscription",
-                                },
-                            },
-                            quantity: 1,
-                        },
-                    ],
-                    success_url: `${process.env.FRONTEND_URL}/subscribe-success?session_id={CHECKOUT_SESSION_ID}`,
-                    cancel_url: `${process.env.FRONTEND_URL}/dashboard/citizen-profile`,
-                    metadata: { email },
-                });
+        //         const session = await stripe.checkout.sessions.create({
+        //             payment_method_types: ["card"],
+        //             mode: "payment",
+        //             customer_email: email,
+        //             line_items: [
+        //                 {
+        //                     price_data: {
+        //                         currency: "bdt",
+        //                         unit_amount: 1000 * 100, // 1000 TK
+        //                         product_data: {
+        //                             name: "CityFix Premium Subscription",
+        //                         },
+        //                     },
+        //                     quantity: 1,
+        //                 },
+        //             ],
+        //             success_url: `${process.env.FRONTEND_URL}/subscribe-success?session_id={CHECKOUT_SESSION_ID}`,
+        //             cancel_url: `${process.env.FRONTEND_URL}/dashboard/citizen-profile`,
+        //             metadata: { email },
+        //         });
 
-                res.send({ url: session.url });
-            } catch (err) {
-                console.error(err);
-                res.status(500).send({ message: "Server error" });
-            }
-        });
+        //         res.send({ url: session.url });
+        //     } catch (err) {
+        //         console.error(err);
+        //         res.status(500).send({ message: "Server error" });
+        //     }
+        // });
 
         app.get("/payments/subscribe-success", async (req, res) => {
             try {
