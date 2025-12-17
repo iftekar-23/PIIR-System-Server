@@ -525,90 +525,90 @@ async function run() {
 
 
         // // STAFF — Get issues assigned to a specific staff
-        // app.get("/dashboard/staff/issues", verifyFBToken, async (req, res) => {
-        //     try {
-        //         const email = req.query.email;
-        //         if (!email || req.decoded_email !== email)
-        //             return res.status(403).send({ message: "Forbidden" });
+        app.get("/dashboard/staff/issues", verifyFBToken, async (req, res) => {
+            try {
+                const email = req.query.email;
+                if (!email || req.decoded_email !== email)
+                    return res.status(403).send({ message: "Forbidden" });
 
-        //         const issues = await issuesCollection
-        //             .find({ assignedTo: email })
-        //             .sort({ priority: -1 }) // high → normal
-        //             .toArray();
+                const issues = await issuesCollection
+                    .find({ assignedTo: email })
+                    .sort({ priority: -1 }) // high → normal
+                    .toArray();
 
-        //         res.send(issues);
-        //     } catch (err) {
-        //         console.error(err);
-        //         res.status(500).send({ message: "Server error" });
-        //     }
-        // });
+                res.send(issues);
+            } catch (err) {
+                console.error(err);
+                res.status(500).send({ message: "Server error" });
+            }
+        });
 
         // // STAFF — Dashboard stats
-        // app.get("/dashboard/staff/stats", async (req, res) => {
-        //     try {
-        //         const email = req.query.email;
-        //         if (!email) {
-        //             return res.status(400).send({ message: "Email is required" });
-        //         }
+        app.get("/dashboard/staff/stats", async (req, res) => {
+            try {
+                const email = req.query.email;
+                if (!email) {
+                    return res.status(400).send({ message: "Email is required" });
+                }
 
-        //         const baseQuery = { assignedTo: email };
+                const baseQuery = { assignedTo: email };
 
-        //         // total assigned
-        //         const assigned = await issuesCollection.countDocuments(baseQuery);
+                // total assigned
+                const assigned = await issuesCollection.countDocuments(baseQuery);
 
-        //         // resolved issues
-        //         const resolved = await issuesCollection.countDocuments({
-        //             ...baseQuery,
-        //             status: "Resolved",
-        //         });
+                // resolved issues
+                const resolved = await issuesCollection.countDocuments({
+                    ...baseQuery,
+                    status: "Resolved",
+                });
 
-        //         // closed issues
-        //         const closed = await issuesCollection.countDocuments({
-        //             ...baseQuery,
-        //             status: "Closed",
-        //         });
+                // closed issues
+                const closed = await issuesCollection.countDocuments({
+                    ...baseQuery,
+                    status: "Closed",
+                });
 
-        //         // today's updated tasks
-        //         const startOfDay = new Date();
-        //         startOfDay.setHours(0, 0, 0, 0);
+                // today's updated tasks
+                const startOfDay = new Date();
+                startOfDay.setHours(0, 0, 0, 0);
 
-        //         const todaysTasks = await issuesCollection.countDocuments({
-        //             ...baseQuery,
-        //             updatedAt: { $gte: startOfDay },
-        //         });
+                const todaysTasks = await issuesCollection.countDocuments({
+                    ...baseQuery,
+                    updatedAt: { $gte: startOfDay },
+                });
 
-        //         // recent activity (group by status)
-        //         const recentActivity = await issuesCollection
-        //             .aggregate([
-        //                 { $match: baseQuery },
-        //                 {
-        //                     $group: {
-        //                         _id: "$status",
-        //                         count: { $sum: 1 },
-        //                     },
-        //                 },
-        //                 {
-        //                     $project: {
-        //                         _id: 0,
-        //                         label: "$_id",
-        //                         count: 1,
-        //                     },
-        //                 },
-        //             ])
-        //             .toArray();
+                // recent activity (group by status)
+                const recentActivity = await issuesCollection
+                    .aggregate([
+                        { $match: baseQuery },
+                        {
+                            $group: {
+                                _id: "$status",
+                                count: { $sum: 1 },
+                            },
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                label: "$_id",
+                                count: 1,
+                            },
+                        },
+                    ])
+                    .toArray();
 
-        //         res.send({
-        //             assigned,
-        //             resolved,
-        //             closed,
-        //             todaysTasks,
-        //             recentActivity,
-        //         });
-        //     } catch (error) {
-        //         console.error("Staff stats error:", error);
-        //         res.status(500).send({ message: "Failed to load staff stats" });
-        //     }
-        // });
+                res.send({
+                    assigned,
+                    resolved,
+                    closed,
+                    todaysTasks,
+                    recentActivity,
+                });
+            } catch (error) {
+                console.error("Staff stats error:", error);
+                res.status(500).send({ message: "Failed to load staff stats" });
+            }
+        });
 
 
 
