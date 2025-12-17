@@ -51,7 +51,14 @@ async function run() {
         console.log("MongoDB Connected Successfully!");
 
 
-        
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded_email;
+            const user = await usersCollection.findOne({ email });
+            if (!user || user.role !== "admin") {
+                return res.status(403).send({ message: "Admin only route" });
+            }
+            next();
+        };
 
         // Helper: Get User by Email
         const getUserByEmail = async (email) => {
